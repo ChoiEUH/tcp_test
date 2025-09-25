@@ -19,7 +19,9 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "lwip.h"
+#include "lwip/tcp.h"
 
+#include "string.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -58,6 +60,36 @@ static void MX_USART3_UART_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 extern struct netif gnetif;
+
+//소켓 같은 역할의 구조체//
+static struct tcp_pcb *client_pcb;
+
+//통신 성공 시 호출 되는 콜백함수(hello stm32를 출력)
+err_t tcp_client_connected(void *arg, struct tcp_pcb *tpcb, err_t err){
+	if(err == ERR_OK){
+		const char *buf = "hello stm32";
+
+		tcp_write(tpcb, buf, strlen(buf), TCP_WRITE_FLAG_COPY);
+		tcp_output(tpcb);
+
+	}
+	return ERR_OK;
+}
+
+void send_tcp_message(void){
+	ip_addr_t server_ip;
+	//서버 측 컴퓨터 주소를 세팅//
+	IP4_ADDR(&server_ip, 192,168,0,10);
+
+	//새로운 tcp용 pcb 생성, (연결상태,ip,포트,송/수신 윈도우,버퍼 콜백 함수 포인터 등등을 담고 있음) //
+	client_pcb = tcp_new();
+	//pcb 구조체를 성공적으로 확보 했을 시//
+	if(client_pcb != NULL){
+		//서버와 클라이언트 간 3WAY HandShake 진행 (성공 시 콜백함수 호출)//
+		tcp_connect(client_pcb, &server_ip, 5000, tcp_client_connected);
+	}
+
+}
 /* USER CODE END 0 */
 
 /**
@@ -92,7 +124,8 @@ int main(void)
   MX_USART3_UART_Init();
   MX_LWIP_Init();
   /* USER CODE BEGIN 2 */
-
+HAL_Delay(2000);
+send_tcp_message();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -100,8 +133,8 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-   ethernetif_input(&gnetif);
-   sys_check_timeouts();
+	   ethernetif_input(&gnetif); //패킷 수신
+		   sys_check_timeouts(); //주기적 관리
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
